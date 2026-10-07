@@ -1,0 +1,47 @@
+services:
+ - type: web
+   name: vikunja
+   runtime: docker
+   dockerfilePath: ./Dockerfile
+   plan: free
+   envVars:
+     - key: VIKUNJA_DATABASE_TYPE
+       value: postgres
+     - key: VIKUNJA_DATABASE_HOST
+       value: "aws-0-us-west-2.pooler.supabase.com"
+     - key: VIKUNJA_DATABASE_PORT
+       value: "6543"
+     - key: VIKUNJA_DATABASE_USER
+       value: "vikunja_pg.kuajmlczxracqobxkzee"
+     - key: VIKUNJA_DATABASE_DATABASE
+       value: "postgres"
+     - key: VIKUNJA_DATABASE_SSLMODE
+       value: "require"
+     - key: VIKUNJA_DATABASE_SCHEMA
+       value: "vikunja"
+     - key: VIKUNJA_SERVICE_PUBLICURL
+       value: "https://vikunja.jyrac.stki.org"
+     - key: VIKUNJA_CORS_ENABLE
+       value: "false"
+     - key: VIKUNJA_MAILER_ENABLED
+       value: "false"
+     - key: VIKUNJA_SERVICE_ENABLEREGISTRATION
+       value: "false"
+     - key: VIKUNJA_FILES_MAXSIZE
+       value: "1B"
+     - key: VIKUNJA_FILES_BASEPATH
+       value: "/tmp"
+     - key: VIKUNJA_AUTH_LOCAL_ENABLED
+       value: "false"
+     - key: VIKUNJA_AUTH_OPENID_ENABLED
+       value: "true"
+     - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_NAME
+       value: "casdoor"
+     - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_AUTHURL
+       value: "https://auth.jyrac.stki.org"
+     - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_CLIENTID
+       value: "d4987785180dd91d5d0c"
+     - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_SCOPE
+       value: "openid profile email"
+     - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_FORCEUSERINFO
+       value: "true"
