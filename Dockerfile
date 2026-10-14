@@ -30,7 +30,7 @@ ENV VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/
 WORKDIR /app/vikunja
 
 COPY openbao/agent.hcl /etc/openbao/agent.hcl
-COPY entrypoint.sh /entrypoint.sh
+COPY openbao/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 3456
