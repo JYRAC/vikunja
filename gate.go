@@ -54,7 +54,7 @@ func main() {
 		}
 
 		log.Printf(
-			"IP_OBSERVE method=%q path=%q remote_addr=%q remote_ip=%q x_forwarded_for=%q x_real_ip=%q cf_connecting_ip=%q forwarded=%q",
+			"IP_OBSERVE method=%q path=%q remote_addr=%q remote_ip=%q x_forwarded_for=%q x_real_ip=%q cf_connecting_ip=%q forwarded=%q user_agent=%q",
 			r.Method,
 			r.URL.Path,
 			r.RemoteAddr,
@@ -63,6 +63,7 @@ func main() {
 			r.Header.Get("X-Real-IP"),
 			r.Header.Get("CF-Connecting-IP"),
 			r.Header.Get("Forwarded"),
+			r.UserAgent(),
 		)
 
 		proxy.ServeHTTP(w, r)
