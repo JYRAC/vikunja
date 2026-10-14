@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -26,16 +25,17 @@ func setEnv(env []string, key, value string) []string {
 			result = append(result, item)
 		}
 	}
+
 	return append(result, prefix+value)
 }
 
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "10000"
+		port = "3456"
 	}
 
-	target, err := url.Parse("http://127.0.0.1:3456")
+	target, err := url.Parse("http://127.0.0.1:3457")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,28 +65,26 @@ func main() {
 			r.Header.Get("Forwarded"),
 		)
 
-		// 今はIPによる許可・拒否を行わず、すべて転送する。
 		proxy.ServeHTTP(w, r)
 	})
 
 	server := &http.Server{
-		Addr:              ":" + port,
+		Addr:              "0.0.0.0:" + port,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
 	go func() {
-		log.Printf("GATE_LISTENING addr=:%s", port)
+		log.Printf("GATE_LISTENING addr=0.0.0.0:%s", port)
 		serverErr <- server.ListenAndServe()
 	}()
 
-	// OpenBao Agentから受け取った環境変数を引き継ぐ。
 	cmd := exec.Command("/app/vikunja/vikunja")
 	cmd.Env = setEnv(
 		os.Environ(),
 		"VIKUNJA_SERVICE_INTERFACE",
-		"127.0.0.1:3456",
+		"127.0.0.1:3457",
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -94,7 +92,6 @@ func main() {
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("start Vikunja: %v", err)
 	}
-
 	log.Printf("VIKUNJA_STARTED pid=%d", cmd.Process.Pid)
 
 	appDone := make(chan error, 1)
@@ -112,9 +109,11 @@ func main() {
 	select {
 	case s := <-sig:
 		log.Printf("received signal %s", s)
+
 	case appErr = <-appDone:
 		appExited = true
 		log.Printf("Vikunja exited: %v", appErr)
+
 	case err := <-serverErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("HTTP server exited: %v", err)
@@ -127,9 +126,11 @@ func main() {
 
 	if !appExited {
 		_ = cmd.Process.Signal(syscall.SIGTERM)
+
 		select {
 		case appErr = <-appDone:
 			log.Printf("Vikunja stopped: %v", appErr)
+
 		case <-time.After(5 * time.Second):
 			_ = cmd.Process.Kill()
 			<-appDone

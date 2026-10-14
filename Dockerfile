@@ -30,10 +30,8 @@ ENV VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/
 WORKDIR /app/vikunja
 
 COPY openbao/agent.hcl /etc/openbao/agent.hcl
-COPY openbao/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 公開HTTP入口はゲートが担当
-EXPOSE 10000
-
+EXPOSE 3456
 ENTRYPOINT ["/entrypoint.sh"]
