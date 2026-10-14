@@ -15,4 +15,6 @@ fi
 
 echo "$REAL_TOKEN" > /tmp/vault-token
 
+echo "PORT=${PORT:-<unset>}"
+
 exec bao agent -config=/etc/openbao/agent.hcl
