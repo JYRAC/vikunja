@@ -24,6 +24,6 @@ env_template "VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_CLIENTSECRET" {
 }
 
 exec {
-  command                   = ["/app/vikunja/vikunja"]
+  command = ["/app/gate"]
   restart_on_secret_changes = "always"
 }
