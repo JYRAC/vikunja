@@ -45,3 +45,9 @@ services:
        value: "openid profile email"
      - key: VIKUNJA_AUTH_OPENID_PROVIDERS_CASDOOR_FORCEUSERINFO
        value: "true"
+     - key: "VIKUNJA_LOG_STANDARD"
+       value: "stdout"
+     - key: "VIKUNJA_LOG_HTTP"
+       value: "stdout"
+     - key: "VIKUNJA_LOG_FORMAT"
+       value: "structured"
