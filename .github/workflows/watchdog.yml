@@ -15,7 +15,7 @@ jobs:
         id: check
         run: |
           CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-            https://vikunja.jyrac.stki.org/api/v1/info) || CODE="000"
+            https://vikunja.jyrac.stki.org/gate/healthz) || CODE="000"
 
           echo "code=$CODE"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
