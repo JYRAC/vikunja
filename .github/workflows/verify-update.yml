@@ -59,80 +59,107 @@ jobs:
               -d "$(jq -n --arg b "$1" '{body:$b}')" >/dev/null || true
           }
 
-          # --- 1. 候補のPRを選ぶ ---
+          # --- 1. 候補のPRを集める(古い順) ---
           if [ -n "${PR_INPUT:-}" ]; then
-            PR="$PR_INPUT"
+            PRS="$PR_INPUT"
           else
-            PR=$(gh_api "$API/repos/$REPO/pulls?state=open&per_page=50&sort=created&direction=asc" \
-              | jq -r '[.[] | select(.user.login=="renovate[bot]" and (.head.ref|startswith("renovate/")))][0].number // empty')
+            PRS=$(gh_api "$API/repos/$REPO/pulls?state=open&per_page=50&sort=created&direction=asc" \
+              | jq -r '.[] | select(.user.login=="renovate[bot]" and (.head.ref|startswith("renovate/"))) | .number')
           fi
-          if [ -z "$PR" ]; then echo "no candidate PR"; exit 0; fi
+          if [ -z "$PRS" ]; then echo "no candidate PR"; exit 0; fi
 
-          PRJ=$(gh_api "$API/repos/$REPO/pulls/$PR")
-          AUTHOR=$(jq -r .user.login <<<"$PRJ")
-          HEAD=$(jq -r .head.sha <<<"$PRJ")
-          HEADREPO=$(jq -r .head.repo.full_name <<<"$PRJ")
-          TITLE=$(jq -r .title <<<"$PRJ")
-          echo "candidate: #$PR $TITLE ($HEAD)"
+          # --- 2. 候補を古い順に調べて、進めてよい最初の1件を選ぶ(待ち・不適合の候補は飛ばして次へ) ---
+          ERRS=0
+          check_candidate() { # PR番号 -> 0: 進める / 1: 飛ばす
+            local n="$1" PRJ AUTHOR HEADREPO BAD NEWVER PREV_VER PREV_DATE AGE_H BEHIND BK BK_DATE BK_AGE_MIN
+            PRJ=$(gh_api "$API/repos/$REPO/pulls/$n") || { echo "::error::cannot read PR #$n"; ERRS=$((ERRS+1)); return 1; }
+            AUTHOR=$(jq -r .user.login <<<"$PRJ")
+            HEAD=$(jq -r .head.sha <<<"$PRJ")
+            HEADREPO=$(jq -r .head.repo.full_name <<<"$PRJ")
+            TITLE=$(jq -r .title <<<"$PRJ")
+            echo "candidate: #$n $TITLE ($HEAD)"
+            echo "- candidate #$n: $TITLE" >> "$GITHUB_STEP_SUMMARY"
 
-          # --- 2. 安全確認: Renovate本人の、同一リポジトリのブランチで、Dockerfileの FROM / ARG BAO_VERSION 行だけの変更 ---
-          if [ "$AUTHOR" != "renovate[bot]" ] || [ "$HEADREPO" != "$REPO" ]; then
-            echo "::error::PR #$PR is not from renovate[bot] in this repo; refusing"; exit 1
-          fi
-          FILES=$(gh_api "$API/repos/$REPO/pulls/$PR/files?per_page=100")
-          if [ "$(jq 'length' <<<"$FILES")" != "1" ] || [ "$(jq -r '.[0].filename' <<<"$FILES")" != "Dockerfile" ]; then
-            echo "::error::PR #$PR changes files other than Dockerfile; refusing"; exit 1
-          fi
-          BAD=$(jq -r '.[0].patch // ""' <<<"$FILES" \
-            | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
-            | grep -vE '^[+-](FROM |ARG BAO_VERSION=)' || true)
-          if [ -n "$BAD" ]; then
-            echo "::error::PR #$PR changes lines other than FROM / ARG BAO_VERSION; refusing"; exit 1
-          fi
+            # 安全確認: Renovate本人の、同一リポジトリのブランチで、Dockerfileの FROM / ARG BAO_VERSION 行だけの変更
+            if [ "$AUTHOR" != "renovate[bot]" ] || [ "$HEADREPO" != "$REPO" ]; then
+              echo "::error::PR #$n is not from renovate[bot] in this repo; refusing"; ERRS=$((ERRS+1)); return 1
+            fi
+            FILES=$(gh_api "$API/repos/$REPO/pulls/$n/files?per_page=100") || FILES="[]"
+            if [ "$(jq 'length' <<<"$FILES")" != "1" ] || [ "$(jq -r '.[0].filename' <<<"$FILES")" != "Dockerfile" ]; then
+              echo "::error::PR #$n changes files other than Dockerfile; refusing"; ERRS=$((ERRS+1)); return 1
+            fi
+            BAD=$(jq -r '.[0].patch // ""' <<<"$FILES" \
+              | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+              | grep -vE '^[+-](FROM |ARG BAO_VERSION=)' || true)
+            if [ -n "$BAD" ]; then
+              echo "::error::PR #$n changes lines other than FROM / ARG BAO_VERSION; refusing"; ERRS=$((ERRS+1)); return 1
+            fi
 
+            # mainに追いついているか(古い土台のままデプロイしない。追いついていなければ、Renovateのrebaseを待つ)
+            BEHIND=$(gh_api "$API/repos/$REPO/compare/main...$HEAD" | jq -r '.behind_by // empty') || BEHIND=""
+            if [ "$BEHIND" != "0" ]; then
+              echo "waiting: PR #$n is ${BEHIND:-?} commit(s) behind main; waiting for Renovate to rebase"
+              echo "- #$n waiting: behind main by ${BEHIND:-?}" >> "$GITHUB_STEP_SUMMARY"; return 1
+            fi
+
+            # 段階づけ(BAO_VERSIONの更新だけ): 前段のリポジトリが同じ版で十分な時間動いているときだけ進む
+            NEWVER=$(jq -r '.[0].patch' <<<"$FILES" | grep -E '^\+ARG BAO_VERSION=' | head -1 | sed 's/^+ARG BAO_VERSION=//') || true
+            if [ -n "$NEWVER" ]; then
+              PREV_VER=$(gh_api "$API/repos/JYRAC/$PREV_REPO/contents/Dockerfile?ref=main" \
+                | jq -r .content | base64 -d | grep -E '^ARG BAO_VERSION=' | head -1 | sed 's/^ARG BAO_VERSION=//') || true
+              PREV_DATE=$(gh_api "$API/repos/JYRAC/$PREV_REPO/commits?path=Dockerfile&per_page=1" \
+                | jq -r '.[0].commit.committer.date // empty') || PREV_DATE=""
+              if [ -z "$PREV_DATE" ]; then
+                echo "waiting: cannot read the history of $PREV_REPO"; return 1
+              fi
+              AGE_H=$(( ( $(date +%s) - $(date -d "$PREV_DATE" +%s) ) / 3600 ))
+              echo "gate: $PREV_REPO is on ${PREV_VER:-unknown} (Dockerfile last changed ${AGE_H}h ago); candidate wants $NEWVER"
+              echo "- #$n gate: $PREV_REPO=${PREV_VER:-unknown}, age=${AGE_H}h, candidate=$NEWVER" >> "$GITHUB_STEP_SUMMARY"
+              if [ "$PREV_VER" != "$NEWVER" ]; then
+                echo "waiting: $PREV_REPO is not on $NEWVER yet"; return 1
+              fi
+              if [ "$AGE_H" -lt "$MIN_AGE_HOURS" ]; then
+                echo "waiting: $PREV_REPO changed only ${AGE_H}h ago (< ${MIN_AGE_HOURS}h)"; return 1
+              fi
+            else
+              echo "gate: FROM update (not gated by the chain)"
+            fi
+
+            # 直前のバックアップの確認(DBを持つアプリの更新は、直前のバックアップが前提)
+            BK=$(gh_api "$API/repos/JYRAC/backup/commits?path=dumps&per_page=1" | jq -c '.[0] // empty') || BK=""
+            BK_SHA=$(jq -r '.sha // empty' <<<"$BK" 2>/dev/null || true)
+            BK_DATE=$(jq -r '.commit.committer.date // empty' <<<"$BK" 2>/dev/null || true)
+            if [ -z "$BK_DATE" ]; then BK_AGE_MIN=999999
+            else BK_AGE_MIN=$(( ( $(date +%s) - $(date -d "$BK_DATE" +%s) ) / 60 )); fi
+            echo "backup: latest ${BK_SHA:0:7} (${BK_AGE_MIN} min ago)"
+            echo "- #$n backup: ${BK_SHA:0:7}, ${BK_AGE_MIN} min ago" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$BK_AGE_MIN" -gt "$MAX_BACKUP_AGE_MIN" ]; then
+              echo "::warning::latest backup is ${BK_AGE_MIN} min old (> ${MAX_BACKUP_AGE_MIN} min); skipping the update"
+              return 1
+            fi
+            return 0
+          }
+
+          PR=""
+          for CAND in $PRS; do
+            PR="$CAND"
+            if check_candidate "$CAND"; then break; fi
+            PR=""
+          done
+          if [ -z "$PR" ]; then
+            echo "no PR is ready this run"
+            if [ "$ERRS" -gt 0 ]; then exit 1; fi
+            exit 0
+          fi
+          echo "selected: #$PR $TITLE"
           {
-            echo "### Candidate"
+            echo "### Selected candidate"
             echo "- PR #$PR: $TITLE"
             echo "- commit: \`$HEAD\`"
             echo '```diff'
             jq -r '.[0].patch' <<<"$FILES"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-
-          # --- 2b. 段階づけ(BAO_VERSIONの更新だけ): 前段のリポジトリが同じ版で十分な時間動いているときだけ進む ---
-          NEWVER=$(jq -r '.[0].patch' <<<"$FILES" | grep -E '^\+ARG BAO_VERSION=' | head -1 | sed 's/^+ARG BAO_VERSION=//') || true
-          if [ -n "$NEWVER" ]; then
-            PREV_VER=$(gh_api "$API/repos/JYRAC/$PREV_REPO/contents/Dockerfile?ref=main" \
-              | jq -r .content | base64 -d | grep -E '^ARG BAO_VERSION=' | head -1 | sed 's/^ARG BAO_VERSION=//') || true
-            PREV_DATE=$(gh_api "$API/repos/JYRAC/$PREV_REPO/commits?path=Dockerfile&per_page=1" \
-              | jq -r '.[0].commit.committer.date')
-            AGE_H=$(( ( $(date +%s) - $(date -d "$PREV_DATE" +%s) ) / 3600 ))
-            echo "gate: $PREV_REPO is on ${PREV_VER:-unknown} (Dockerfile last changed ${AGE_H}h ago); candidate wants $NEWVER"
-            echo "- gate: $PREV_REPO=${PREV_VER:-unknown}, age=${AGE_H}h, candidate=$NEWVER" >> "$GITHUB_STEP_SUMMARY"
-            if [ "$PREV_VER" != "$NEWVER" ]; then
-              echo "waiting: $PREV_REPO is not on $NEWVER yet"; exit 0
-            fi
-            if [ "$AGE_H" -lt "$MIN_AGE_HOURS" ]; then
-              echo "waiting: $PREV_REPO changed only ${AGE_H}h ago (< ${MIN_AGE_HOURS}h)"; exit 0
-            fi
-          else
-            echo "gate: FROM update (not gated by the chain)"
-            echo "- gate: FROM update (not gated)" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          # --- 2c. 直前のバックアップの確認(DBを持つアプリの更新は、直前のバックアップが前提) ---
-          BK=$(gh_api "$API/repos/JYRAC/backup/commits?path=dumps&per_page=1" | jq -c '.[0] // empty') || BK=""
-          BK_SHA=$(jq -r '.sha // empty' <<<"$BK" 2>/dev/null || true)
-          BK_DATE=$(jq -r '.commit.committer.date // empty' <<<"$BK" 2>/dev/null || true)
-          if [ -z "$BK_DATE" ]; then BK_AGE_MIN=999999
-          else BK_AGE_MIN=$(( ( $(date +%s) - $(date -d "$BK_DATE" +%s) ) / 60 )); fi
-          echo "backup: latest ${BK_SHA:0:7} (${BK_AGE_MIN} min ago)"
-          echo "- backup: ${BK_SHA:0:7}, ${BK_AGE_MIN} min ago" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$BK_AGE_MIN" -gt "$MAX_BACKUP_AGE_MIN" ]; then
-            echo "::warning::latest backup is ${BK_AGE_MIN} min old (> ${MAX_BACKUP_AGE_MIN} min); skipping the update"
-            exit 0
-          fi
 
           if [ "$DRY_RUN" = "true" ]; then
             echo "dry run: checks passed, nothing deployed or merged"; exit 0
