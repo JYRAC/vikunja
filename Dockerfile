@@ -18,7 +18,7 @@ RUN go mod init gate && \
 FROM vikunja/vikunja:2.6.0 AS vikunja
 
 # OpenBao CLIを取得
-FROM alpine:3.19 AS bao-download
+FROM alpine:3.24 AS bao-download
 ARG BAO_VERSION=2.7.0
 RUN apk add --no-cache curl && \
     curl -fsSL -o /tmp/bao.tar.gz \
@@ -27,7 +27,7 @@ RUN apk add --no-cache curl && \
     tar -xzf /tmp/bao.tar.gz -C /tmp/bao-bin
 
 # 最終イメージ
-FROM alpine:3.19
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 
 COPY --from=vikunja /app/vikunja /app/vikunja
