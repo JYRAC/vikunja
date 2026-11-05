@@ -1,8 +1,18 @@
-# Go製IP観測ゲートをビルド
+# Go製IPゲートをビルド
+#   gate.go（ゲートと監視）と policy.go（許可リストの読み込み）を、Goモジュールとしてビルドする。
+#   go.sum は、ビルド時に pgx の版から作る（Goのチェックサムデータベースで改ざんを検証）。
+#   pgx の版を上げるときは、PGX_VERSION を書き換える。
 FROM golang:1.24-alpine AS gate-build
+# 依存の pgx が、より新しいGoを求める場合に、必要な版を自動で取得する
+ENV GOTOOLCHAIN=auto \
+    CGO_ENABLED=0
+ARG PGX_VERSION=v5.9.2
 WORKDIR /src
-COPY gate.go .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gate gate.go
+COPY gate.go policy.go ./
+RUN go mod init gate && \
+    go get github.com/jackc/pgx/v5@${PGX_VERSION} && \
+    go mod tidy && \
+    go build -trimpath -ldflags="-s -w" -o /out/gate .
 
 # Vikunja本体
 FROM vikunja/vikunja:2.6.0 AS vikunja

@@ -51,3 +51,20 @@ services:
        value: "stdout"
      - key: "VIKUNJA_LOG_FORMAT"
        value: "structured"
+     # ---- IPゲート（GATE_DB_USER / GATE_DB_PASSWORD は、Agentが出すので、ここには書かない）----
+     - key: GATE_MODE
+       value: "observe"
+     - key: GATE_DB_HOST
+       value: "aws-0-us-west-2.pooler.supabase.com"
+     - key: GATE_DB_PORT
+       value: "6543"
+     - key: GATE_DB_NAME
+       value: "postgres"
+     - key: GATE_DB_SSLMODE
+       value: "require"
+     - key: GATE_UPSTREAM_HEALTH_PATH
+       value: "/api/v1/info"
+     - key: GATE_DENIED_URL
+       value: "https://gate.jyrac.stki.org/denied"
+     - key: GATE_REDIRECT_URL
+       value: "https://gate.jyrac.stki.org/"
