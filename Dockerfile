@@ -15,7 +15,7 @@ RUN go mod init gate && \
     go build -trimpath -ldflags="-s -w" -o /out/gate .
 
 # Vikunja本体
-FROM vikunja/vikunja:2.6.0 AS vikunja
+FROM vikunja/vikunja:2.8.0 AS vikunja
 
 # OpenBao CLIを取得
 FROM alpine:3.24 AS bao-download
