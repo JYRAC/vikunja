@@ -73,4 +73,4 @@ services:
      - key: NB_HOSTNAME
        value: "vikunja"
      - key: OPENBAO_NB_ADDR
-       value: "https://100.74.XXX.XXX:8210"   # ← OpenBao の NetBird の IP に書き換える（名前では引けない）
+       https://100.125.124.43:8210
