@@ -27,7 +27,7 @@ jobs:
           COMMIT: ${{ inputs.commit }}
           WRAP_TTL: ${{ inputs.wrap_ttl }}
           NB_API_TOKEN: ${{ secrets.NETBIRD_API_TOKEN }}
-          NB_GROUP_ID: ${{ vars.NB_GROUP_ID_APP_VIKUNJA }}
+          NB_GROUP_ID: ${{ secrets.NB_GROUP_ID_APP_VIKUNJA }}
         run: |
           set -u
           BAO_ADDR=https://openbao.jyrac.stki.org
