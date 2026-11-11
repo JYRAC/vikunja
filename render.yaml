@@ -68,3 +68,9 @@ services:
        value: "https://gate.jyrac.stki.org/denied"
      - key: GATE_REDIRECT_URL
        value: "https://gate.jyrac.stki.org/"
+     # ---- NetBird（OpenBao へ、NetBird 経由で接続する）----
+     # NB_SETUP_KEY は、openbao.yml が、デプロイのたびに作って渡すので、ここには書かない
+     - key: NB_HOSTNAME
+       value: "vikunja"
+     - key: OPENBAO_NB_ADDR
+       value: "https://100.74.XXX.XXX:8210"   # ← OpenBao の NetBird の IP に書き換える（名前では引けない）
