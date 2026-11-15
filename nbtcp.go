@@ -16,7 +16,8 @@
 //	  NB_CHECK_SEC      --check の待ち時間（秒）。既定 40
 //
 //	--check  宛先に、TLS 1.3 でつながり、証明書を CA と名前で検証できるまで待つ。できれば 0、できなければ 1。
-//	（--check なし）  待ち受けを始める。
+//	--wait-listen  NBTCP_LISTEN が待ち受け中になるまで待つ（最大 5 秒）。待ち受け中なら 0、そうでなければ 1。
+//	（引数なし）  待ち受けを始める。
 package main
 
 import (
@@ -191,7 +192,22 @@ func serve(ip net.IP, port int) int {
 	}
 }
 
+func waitListen() int {
+	for i := 0; i < 20; i++ {
+		c, err := net.DialTimeout("tcp", listen, 500*time.Millisecond)
+		if err == nil {
+			c.Close()
+			return 0
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return 1
+}
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--wait-listen" {
+		os.Exit(waitListen())
+	}
 	ip, port, err := parseTarget()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", tag, err)

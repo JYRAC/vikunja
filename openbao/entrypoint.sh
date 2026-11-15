@@ -61,9 +61,7 @@ CASDOOR_HOST="${CASDOOR_HOSTNAME:-auth.jyrac.stki.org}"
 CASDOOR_VIA=public
 if [ "$NB_OK" = 1 ] && [ -n "${CASDOOR_NB_ADDR:-}" ]; then
   nbtcp >&2 &
-  i=0
-  while [ "$i" -lt 20 ] && ! nc -z 127.0.0.1 443 2>/dev/null; do i=$((i + 1)); sleep 0.25; done
-  if ! nc -z 127.0.0.1 443 2>/dev/null; then
+  if ! nbtcp --wait-listen; then
     echo "NB: 127.0.0.1:443 で待ち受けられませんでした。Casdoor へは、公開側でつなぎます" >&2
   elif ! echo "127.0.0.1 $CASDOOR_HOST" >> /etc/hosts 2>/dev/null; then
     echo "NB: /etc/hosts に書けませんでした。Casdoor へは、公開側でつなぎます" >&2
