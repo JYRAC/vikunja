@@ -39,7 +39,7 @@ FROM vikunja/vikunja:2.8.0 AS vikunja
 # OpenBao CLIを取得
 FROM alpine:3.24 AS bao-download
 
-ARG BAO_VERSION=2.7.2
+ARG BAO_VERSION=2.7.3
 
 RUN apk add --no-cache curl && \
     curl -fsSL -o /tmp/bao.tar.gz \
