@@ -19,6 +19,14 @@ services:
        value: "require"
      - key: VIKUNJA_DATABASE_SCHEMA
        value: "vikunja"
+     # Vikunja の既定は、接続の寿命が10秒(maxconnectionlifetime=10000)。10秒ごとに接続を捨てて
+     # つなぎ直すので、そのたびに Supavisor から TLS と認証の応答が出て、Egress を消費していた。
+     - key: VIKUNJA_DATABASE_MAXCONNECTIONLIFETIME
+       value: "1800000"   # 30分(ミリ秒)
+     - key: VIKUNJA_DATABASE_MAXIDLECONNECTIONS
+       value: "4"
+     - key: VIKUNJA_DATABASE_MAXOPENCONNECTIONS
+       value: "10"
      - key: VIKUNJA_SERVICE_PUBLICURL
        value: "https://vikunja.jyrac.stki.org"
      - key: VIKUNJA_CORS_ENABLE
